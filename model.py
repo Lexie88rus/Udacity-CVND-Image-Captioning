@@ -21,6 +21,10 @@ class EncoderCNN(nn.Module):
         return features
     
 
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.xavier_uniform_(m.weight)
+    
 class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1):
         super(DecoderRNN, self).__init__()
@@ -36,7 +40,8 @@ class DecoderRNN(nn.Module):
         self.embed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_size)
         
         # lstm cell
-        self.lstm = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        #self.lstm = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        self.lstm = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, batch_first = True, dropout = 0.5, num_layers = self.num_layers)
     
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
@@ -45,8 +50,8 @@ class DecoderRNN(nn.Module):
         self.softmax = nn.Softmax(dim=1)
         
         # initialize the weights
-        #self.init_weights()
-    
+        self = self.apply(weights_init)
+
     def forward(self, features, captions):
         # setup the device
         device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
@@ -55,8 +60,11 @@ class DecoderRNN(nn.Module):
         batch_size = features.size(0)
         
         # init the hidden and cell states to zeros
-        hidden_state = torch.zeros((batch_size, self.hidden_size)).to(device)
-        cell_state = torch.zeros((batch_size, self.hidden_size)).to(device)
+        #hidden_state = torch.zeros((batch_size, self.hidden_size)).to(device)
+        #cell_state = torch.zeros((batch_size, self.hidden_size)).to(device)
+        
+        hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
     
         # define the output tensor placeholder
         outputs = torch.empty((batch_size, captions.size(1), self.vocab_size)).to(device)
@@ -64,6 +72,11 @@ class DecoderRNN(nn.Module):
         # embed the captions
         captions_embed = self.embed(captions)
         
+        vals = torch.cat((features.reshape(features.size(0), -1, features.size(1)), captions_embed), dim = 1)
+        hidden_state, cell_state = self.lstm(vals, (hidden_state, cell_state))
+        
+        
+        '''
         # pass the caption word by word
         for t in range(captions.size(1)):
 
@@ -80,6 +93,9 @@ class DecoderRNN(nn.Module):
             
             # build the output tensor
             outputs[:, t, :] = out
+         ''' 
+        
+        outputs = self.fc_out(hidden_state[:,1:,:])
             
         return outputs
 
