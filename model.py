@@ -60,9 +60,6 @@ class DecoderRNN(nn.Module):
         batch_size = features.size(0)
         
         # init the hidden and cell states to zeros
-        #hidden_state = torch.zeros((batch_size, self.hidden_size)).to(device)
-        #cell_state = torch.zeros((batch_size, self.hidden_size)).to(device)
-        
         hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
         cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
     
@@ -75,30 +72,36 @@ class DecoderRNN(nn.Module):
         vals = torch.cat((features.reshape(features.size(0), -1, features.size(1)), captions_embed), dim = 1)
         hidden_state, cell_state = self.lstm(vals, (hidden_state, cell_state))
         
-        
-        '''
-        # pass the caption word by word
-        for t in range(captions.size(1)):
-
-            # for the first time step the input is the feature vector
-            if t == 0:
-                hidden_state, cell_state = self.lstm(features, (hidden_state, cell_state))
-                
-            # for the 2nd+ time step, using teacher forcer
-            else:
-                hidden_state, cell_state = self.lstm(captions_embed[:, t, :], (hidden_state, cell_state))
-            
-            # output of the attention mechanism
-            out = self.fc_out(hidden_state)
-            
-            # build the output tensor
-            outputs[:, t, :] = out
-         ''' 
-        
         outputs = self.fc_out(hidden_state[:,1:,:])
             
         return outputs
 
     def sample(self, inputs, states=None, max_len=20):
         " accepts pre-processed image tensor (inputs) and returns predicted sentence (list of tensor ids of length max_len) "
-        pass
+        device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
+        
+        output = []
+        batch_size = inputs.shape[0] # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
+        
+        hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+    
+        while True: 
+            lstm_out, (hidden_state, cell_state) = self.lstm(inputs, (hidden_state, cell_state)) # lstm_out shape : (1, 1, hidden_size)
+            
+            outputs = self.fc_out(lstm_out)  # outputs shape : (1, 1, vocab_size)
+            
+            outputs = outputs.squeeze(1) # outputs shape : (1, vocab_size)
+            _, max_indice = torch.max(outputs, dim=1) # predict the most likely next word, max_indice shape : (1)
+            
+            output.append(max_indice.cpu().numpy()[0].item()) # storing the word predicted
+            
+            if (max_indice == 1 or len(output) >= max_len):
+                # We predicted the <end> word, so there is no further prediction to do
+                break
+            
+            ## Prepare to embed the last predicted word to be the new input of the lstm
+            inputs = self.embed(max_indice) # inputs shape : (1, embed_size)
+            inputs = inputs.unsqueeze(1) # inputs shape : (1, 1, embed_size)
+            
+        return output
