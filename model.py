@@ -39,8 +39,7 @@ class DecoderRNN(nn.Module):
         # embedding layer
         self.embed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_size)
         
-        # lstm cell
-        #self.lstm = nn.LSTMCell(input_size=embed_size, hidden_size=hidden_size)
+        # lstm unit(s)
         self.lstm = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, batch_first = True, dropout = 0.5, num_layers = self.num_layers)
     
         # output fully connected layer
@@ -62,17 +61,16 @@ class DecoderRNN(nn.Module):
         # init the hidden and cell states to zeros
         hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
         cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
-    
-        # define the output tensor placeholder
-        outputs = torch.empty((batch_size, captions.size(1), self.vocab_size)).to(device)
 
         # embed the captions
         captions_embed = self.embed(captions)
         
+        # pass through lstm unit(s)
         vals = torch.cat((features.reshape(features.size(0), -1, features.size(1)), captions_embed), dim = 1)
-        hidden_state, cell_state = self.lstm(vals, (hidden_state, cell_state))
+        outputs, (hidden_state, cell_state) = self.lstm(vals, (hidden_state, cell_state))
         
-        outputs = self.fc_out(hidden_state[:,1:,:])
+        # pass through the linear unit
+        outputs = self.fc_out(outputs)
             
         return outputs
 
@@ -83,18 +81,23 @@ class DecoderRNN(nn.Module):
         output = []
         batch_size = inputs.shape[0] # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
         
+        # initialize hidden state
         hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
         cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
     
         while True: 
+            # pass through lstm unit(s)
             lstm_out, (hidden_state, cell_state) = self.lstm(inputs, (hidden_state, cell_state)) # lstm_out shape : (1, 1, hidden_size)
             
+            # pass through linear unit
             outputs = self.fc_out(lstm_out)  # outputs shape : (1, 1, vocab_size)
             
+            # predict the most likely next word, max_indice shape : (1)
             outputs = outputs.squeeze(1) # outputs shape : (1, vocab_size)
-            _, max_indice = torch.max(outputs, dim=1) # predict the most likely next word, max_indice shape : (1)
+            _, max_indice = torch.max(outputs, dim=1) 
             
-            output.append(max_indice.cpu().numpy()[0].item()) # storing the word predicted
+            # storing the word predicted
+            output.append(max_indice.cpu().numpy()[0].item()) 
             
             if (max_indice == 1 or len(output) >= max_len):
                 # We predicted the <end> word, so there is no further prediction to do
