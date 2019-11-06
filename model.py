@@ -52,6 +52,8 @@ class DecoderRNN(nn.Module):
         self = self.apply(weights_init)
 
     def forward(self, features, captions):
+        captions = captions[:, :-1]
+        
         # setup the device
         device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
         
@@ -59,15 +61,15 @@ class DecoderRNN(nn.Module):
         batch_size = features.size(0)
         
         # init the hidden and cell states to zeros
-        hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
-        cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        self.hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        self.cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
 
         # embed the captions
         captions_embed = self.embed(captions)
         
         # pass through lstm unit(s)
-        vals = torch.cat((features.reshape(features.size(0), -1, features.size(1)), captions_embed), dim = 1)
-        outputs, (hidden_state, cell_state) = self.lstm(vals, (hidden_state, cell_state))
+        vals = torch.cat((features.unsqueeze(1), captions_embed), dim=1)
+        outputs, (self.hidden_state, self.cell_state) = self.lstm(vals, (self.hidden_state, self.cell_state))
         
         # pass through the linear unit
         outputs = self.fc_out(outputs)
@@ -87,7 +89,7 @@ class DecoderRNN(nn.Module):
     
         while True: 
             # pass through lstm unit(s)
-            lstm_out, (hidden_state, cell_state) = self.lstm(inputs, (hidden_state, cell_state)) # lstm_out shape : (1, 1, hidden_size)
+            lstm_out, (self.hidden_state, self.cell_state) = self.lstm(inputs, (self.hidden_state, self.cell_state)) # lstm_out shape : (1, 1, hidden_size)
             
             # pass through linear unit
             outputs = self.fc_out(lstm_out)  # outputs shape : (1, 1, vocab_size)
