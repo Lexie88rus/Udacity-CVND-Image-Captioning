@@ -22,6 +22,9 @@ class EncoderCNN(nn.Module):
     
 
 def weights_init(m):
+    '''
+    Function to initialize weights of the model with xavier initialization.
+    '''
     if isinstance(m, nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
     
@@ -29,11 +32,10 @@ class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1):
         super(DecoderRNN, self).__init__()
         
+        # sizes of the model's blocks
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.embed_size = embed_size
-        
-        # creating character dictionaries
         self.vocab_size = vocab_size
         
         # embedding layer
@@ -44,9 +46,6 @@ class DecoderRNN(nn.Module):
     
         # output fully connected layer
         self.fc_out = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
-    
-        # activations
-        self.softmax = nn.Softmax(dim=1)
         
         # initialize the weights
         self = self.apply(weights_init)
@@ -80,8 +79,10 @@ class DecoderRNN(nn.Module):
         " accepts pre-processed image tensor (inputs) and returns predicted sentence (list of tensor ids of length max_len) "
         device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
         
+        # initialize the output
         output = []
-        batch_size = inputs.shape[0] # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
+        # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
+        batch_size = inputs.shape[0]
         
         # initialize hidden state
         self.hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
@@ -89,24 +90,24 @@ class DecoderRNN(nn.Module):
     
         while True: 
             # pass through lstm unit(s)
-            lstm_out, (self.hidden_state, self.cell_state) = self.lstm(inputs, (self.hidden_state, self.cell_state)) # lstm_out shape : (1, 1, hidden_size)
+            lstm_out, (self.hidden_state, self.cell_state) = self.lstm(inputs, (self.hidden_state, self.cell_state))
             
             # pass through linear unit
-            outputs = self.fc_out(lstm_out)  # outputs shape : (1, 1, vocab_size)
+            outputs = self.fc_out(lstm_out)
             
             # predict the most likely next word, max_indice shape : (1)
-            outputs = outputs.squeeze(1) # outputs shape : (1, vocab_size)
+            outputs = outputs.squeeze(1)
             _, max_indice = torch.max(outputs, dim=1) 
             
             # storing the word predicted
             output.append(max_indice.cpu().numpy()[0].item()) 
             
             if (max_indice == 1 or len(output) >= max_len):
-                # We predicted the <end> word, so there is no further prediction to do
+                # if reached the max length or predicted the end token
                 break
             
-            ## Prepare to embed the last predicted word to be the new input of the lstm
-            inputs = self.embed(max_indice) # inputs shape : (1, embed_size)
-            inputs = inputs.unsqueeze(1) # inputs shape : (1, 1, embed_size)
+            ## embed the last predicted word to be the new input of the lstm
+            inputs = self.embed(max_indice) 
+            inputs = inputs.unsqueeze(1)
             
         return output
