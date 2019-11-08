@@ -84,8 +84,8 @@ class DecoderRNN(nn.Module):
         batch_size = inputs.shape[0] # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
         
         # initialize hidden state
-        hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
-        cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        self.hidden_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
+        self.cell_state = torch.zeros((1, batch_size, self.hidden_size)).to(device)
     
         while True: 
             # pass through lstm unit(s)
