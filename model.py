@@ -81,7 +81,7 @@ class DecoderRNN(nn.Module):
         
         # initialize the output
         output = []
-        # batch_size is 1 at inference, inputs shape : (1, 1, embed_size)
+        # batch_size
         batch_size = inputs.shape[0]
         
         # initialize hidden state
@@ -95,7 +95,7 @@ class DecoderRNN(nn.Module):
             # pass through linear unit
             outputs = self.fc_out(lstm_out)
             
-            # predict the most likely next word, max_indice shape : (1)
+            # predict the most likely next word
             outputs = outputs.squeeze(1)
             _, max_indice = torch.max(outputs, dim=1) 
             
